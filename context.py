@@ -12,16 +12,13 @@ def load_pack(pack_id: str, instruction: str = "") -> Dict[str, Any]:
     if not root.exists():
         return {"pack_id": None, "error": f"pack '{pack_id}' not found"}
 
-    ctx = {
+    return {
         "pack_id": pack_id,
         "profile": _read_json(root / "profile.json"),
-        "rules": _read_json(root / "lesson_rules.json"),
-        "spec": _read_text(root / "lesson_spec.md"),
-        "template": _read_text(root / "lesson_template.md"),
+        "rules": _read_json(root / "rules.json"),
         "skills": _read_text(root / "skills.md"),
         "examples": _retrieve_examples(root / "examples", instruction, k=2),
     }
-    return ctx
 
 
 def _read_json(path: pathlib.Path) -> Dict[str, Any]:
