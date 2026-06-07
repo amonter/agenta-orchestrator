@@ -10,20 +10,37 @@
 
 `agenta-orchestrator` turns a single instruction into completed work on behalf
 of a *principal*. It loads the principal's context pack, asks a hosted
-**council** (policy reviewer + planner) for high-level prose direction, folds
-that direction plus the pack's guardrails into ONE natural-language brief, and
-hands the entire brief to an autonomous coding agent (default `codex exec`) that
-executes freely. Runs are appended to `runs.jsonl` and can be distilled back
-into the pack's `skills.md`. There is NO per-step function dispatch — the
-orchestrator delegates, it does not micromanage.
+**AI executive team** (the "council") for high-level prose direction, folds that
+direction plus the pack's guardrails into ONE natural-language brief, and hands
+the entire brief to a **worker agent** that executes freely. Runs are appended
+to `runs.jsonl` and can be distilled back into the pack's `skills.md`. There is
+NO per-step function dispatch — the orchestrator delegates, it does not
+micromanage.
+
+CORE VALUE PROP — delegated intelligence to cut token cost. The expensive
+frontier-model reasoning happens ONCE, in the council/exec team, which produces
+compact prose direction. A cheaper, faster worker agent then carries out that
+direction. You pay for deep reasoning where it matters and execution where it
+doesn't, instead of running a frontier model through every step.
+
+ROLES:
+- COUNCIL (hosted exec team): not merely "policy + planner" — a sophisticated AI
+  executive team with broader capabilities, using frontier models for deeper
+  reasoning. It reviews, strategizes, and guides the worker.
+- WORKER AGENT: any capable agent that can run the brief on its own. Commonly
+  **Hermes** or **OpenClaw**; use heavier coding agents (e.g. `codex exec`,
+  Claude Code) for complex software work. The worker decides HOW to execute —
+  the orchestrator only hands it the brief.
 
 ## 1. Hard requirements (verify before running)
 
 - Python **3.12+**. Check: `python3 --version`.
 - The code uses the standard library only. No `pip install` is required to
   import or run the orchestrator itself.
-- For `run`: an autonomous coding-agent CLI must be on `PATH`. Default command
-  is `codex exec`. Override with the `CODEX_SUBAGENT_CMD` env var.
+- For `run`: a worker-agent CLI must be on `PATH`. This is whatever agent will
+  execute the brief — Hermes, OpenClaw, `codex exec`, Claude Code, etc. The
+  command defaults to `codex exec`; set your actual worker via the
+  `CODEX_SUBAGENT_CMD` env var (the name is legacy — it accepts ANY agent CLI).
 - For the council and for `enrich`: outbound HTTPS must work (see §2 — this is
   the most common failure on macOS).
 
@@ -55,13 +72,13 @@ Verify the fix:
 | Variable | Required by | Default | Purpose |
 |----------|-------------|---------|---------|
 | `APOLLO_API_KEY` | `enrich` | — (required) | Apollo.io API key for people/match |
-| `CODEX_SUBAGENT_CMD` | `run` | `codex exec` | CLI invoked to execute the brief |
+| `CODEX_SUBAGENT_CMD` | `run` | `codex exec` | Worker-agent CLI invoked to execute the brief (Hermes / OpenClaw / codex / Claude Code). Legacy name; accepts any agent CLI. |
 | `SSL_CERT_FILE` | optional | — | CA bundle path; use for TLS Fix B in §2 |
 
 Set them like:
 ```bash
 export APOLLO_API_KEY="<key>"
-export CODEX_SUBAGENT_CMD="codex exec"   # or your own agent CLI
+export CODEX_SUBAGENT_CMD="hermes"       # the worker agent: Hermes / OpenClaw / codex exec / claude
 ```
 
 ## 4. Commands (exact syntax and contract)
@@ -143,19 +160,24 @@ To create a new pack: make the directory, write a `profile.json`, optionally add
 ```
 instruction + pack_id
    │  load_pack()            context.py  -> profile, rules, examples, skills
-   │  to_council_prompt()    context.py  -> compact prompt for the council
+   │  to_council_prompt()    context.py  -> compact prompt for the exec team
    │  consult()              council.py  -> { policy_review, plan{summary,guidance} }
+   │     (frontier-model reasoning happens HERE, once)
    │     policy_review.approved == false (council reply starts with REJECT)
    │        -> log status="rejected", STOP
    │  plan_to_brief()        execute.py  -> TASK + DIRECTION + GUARDRAILS (one string)
-   │  execute_plan()         execute.py  -> run_codex(brief) in workspace_path
+   │  execute_plan()         execute.py  -> run worker agent on the brief in workspace_path
+   │     (cheaper worker — Hermes / OpenClaw / codex / Claude Code — executes)
    └─ log status="executed" to runs.jsonl
 ```
 
-The council returns PROSE direction, not a rigid step list. If the hosted
-council runtime (`BASE_URL` in [council.py](council.py)) is unreachable, the
-orchestrator does NOT crash — it falls back to a brief built from the task and
-the pack's rules, so the agent still has guardrails but less steering.
+The exec team (council) returns PROSE direction, not a rigid step list — this is
+the expensive frontier-model reasoning, done once. The worker agent then
+executes that direction, so cost concentrates on thinking, not on every step. If
+the hosted council runtime (`BASE_URL` in [council.py](council.py)) is
+unreachable, the orchestrator does NOT crash — it falls back to a brief built
+from the task and the pack's rules, so the worker still has guardrails but less
+steering.
 
 ## 7. Verify the install (no external services required)
 
@@ -189,7 +211,7 @@ python3 -c "from enrich import enrich_many; import json; print(json.dumps(enrich
 |------|------|
 | [agenta.py](agenta.py) | CLI entry point: `run`, `enrich`, `learn` |
 | [context.py](context.py) | Load pack, build council prompt, keyword example retrieval |
-| [council.py](council.py) | Policy review + planner; returns prose direction (no JSON contract) |
-| [execute.py](execute.py) | `plan_to_brief` + `execute_plan`; delegates the brief to the agent |
+| [council.py](council.py) | Hosted AI exec team (frontier reasoning); returns prose direction (no JSON contract) |
+| [execute.py](execute.py) | `plan_to_brief` + `execute_plan`; delegates the brief to the worker agent |
 | [enrich.py](enrich.py) | Apollo people/match enrichment by name or email |
 | [learn.py](learn.py) | Distill `runs.jsonl` into a pack's `skills.md` |
