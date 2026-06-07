@@ -5,7 +5,7 @@ import time
 
 from context import load_pack, to_council_prompt
 from council import consult
-from execute import execute_step
+from execute import execute_plan, plan_to_brief
 from enrich import enrich_many
 from learn import distill
 
@@ -33,27 +33,30 @@ def run(pack_id: str, instruction: str, auto: bool = False, dry: bool = False) -
     result = consult(prompt, planner=ctx["profile"].get("planner", "council-planner"))
     plan = result["plan"]
 
-    print(f"\n{B}\u2550\u2550\u2550 {plan['summary']} \u2550\u2550\u2550{X}")
-    for step in plan["steps"]:
-        print(f"  {step['id']}. [{step['tool']}] {step.get('action', '')}")
+    print(f"\n{B}\u2550\u2550\u2550 {plan.get('summary', 'direction')} \u2550\u2550\u2550{X}")
+    if plan.get("guidance"):
+        print(f"{D}{plan['guidance']}{X}")
 
     if not result["policy_review"].get("approved", True):
         print(f"{R}\u2717 rejected by policy{X}")
+        if result["policy_review"].get("notes"):
+            print(f"{D}{result['policy_review']['notes']}{X}")
         log({"ts": time.time(), "pack_id": pack_id, "status": "rejected", **result})
+        return
+
+    if dry:
+        print(f"\n{D}\u2500\u2500\u2500 brief (dry, not sent to agent) \u2500\u2500\u2500{X}")
+        print(plan_to_brief(plan, instruction, ctx.get("rules")))
         return
 
     if not auto and input(f"{Y}execute? [y/N]: {X}").lower() != "y":
         return
 
-    outcomes = []
-    for step in plan["steps"]:
-        if dry:
-            outcomes.append({"step": step, "result": "[dry]"})
-            continue
-        execution_result = execute_step(step, workspace=workspace)
-        icon = G + "\u2713" + X if execution_result.get("ok") else R + "\u2717" + X
-        print(f"  {icon} step {step['id']}")
-        outcomes.append({"step": step, "result": execution_result})
+    outcome = execute_plan(plan, instruction, workspace=workspace, rules=ctx.get("rules"))
+    icon = G + "\u2713" + X if outcome.get("ok") else R + "\u2717" + X
+    print(f"  {icon} agent finished (rc={outcome.get('returncode')})")
+    if outcome.get("stdout"):
+        print(outcome["stdout"])
 
     log(
         {
@@ -61,7 +64,7 @@ def run(pack_id: str, instruction: str, auto: bool = False, dry: bool = False) -
             "pack_id": pack_id,
             "instruction": instruction,
             "plan": plan,
-            "outcomes": outcomes,
+            "outcomes": [{"result": outcome}],
             "status": "executed",
         }
     )

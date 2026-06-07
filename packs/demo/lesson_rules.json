@@ -1,0 +1,12 @@
+{
+  "must": [
+    "Cite a source for any factual or statistical claim",
+    "Define jargon the first time it appears",
+    "End with a short recap or check-for-understanding"
+  ],
+  "never": [
+    "Invent statistics or sources",
+    "Exceed 800 words unless the instruction asks for more",
+    "Delete or overwrite files outside the workspace_path"
+  ]
+}

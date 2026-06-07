@@ -5,6 +5,20 @@ from typing import Any, Dict
 
 BASE_URL = "https://runtime-63463978729.asia-east1.run.app"
 
+POLICY_SUFFIX = (
+    "\n\nYou are the policy reviewer. Briefly judge whether this is safe and "
+    "on-policy. Note any real risks in one or two sentences. If it absolutely "
+    "must NOT proceed, start your reply with the word REJECT and say why. "
+    "Otherwise just give your notes — no JSON, no checklist."
+)
+
+PLANNER_SUFFIX = (
+    "\n\nYou are the planner. Give HIGH-LEVEL direction for how to approach "
+    "this: the key moves, what a great result looks like, and pitfalls to "
+    "avoid. Write a short prose brief, not a rigid step-by-step checklist — "
+    "the executing agent is capable and will decide the exact steps itself."
+)
+
 
 def _stream(personality: str, user_input: str) -> str:
     payload = {
@@ -30,37 +44,41 @@ def _stream(personality: str, user_input: str) -> str:
     return "".join(chunks)
 
 
-def _extract_json(text: str) -> Dict[str, Any]:
-    match = re.search(r"\{[\s\S]*\}", text)
-    if not match:
-        raise ValueError(f"No JSON in: {text[:200]}")
-    return json.loads(match.group(0))
+def _looks_rejected(text: str) -> bool:
+    return bool(re.search(r"\bREJECT\b", text, re.IGNORECASE))
+
+
+def _first_line(text: str) -> str:
+    for line in text.splitlines():
+        line = line.strip().lstrip("#").strip()
+        if line:
+            return line[:200]
+    return "Strategic direction"
 
 
 def consult(
     prompt: str, planner: str = "council-planner", policy: str = "council-policy-qc3"
 ) -> Dict[str, Any]:
-    """Council = QC + Planner. Planner creates content plan + steps."""
-    try:
-        policy_review = _extract_json(_stream(policy, prompt))
-    except Exception:
-        policy_review = {"approved": True, "risks": [], "quality_gates": []}
+    """Council = policy QC + planner. Both answer in natural language.
 
-    plan_raw = _stream(planner, prompt + "\n\nReturn STRICT JSON plan.")
+    We keep the planner's prose as high-level *direction*, not a rigid plan.
+    The executing agent reads it and decides how to act.
+    """
     try:
-        plan = _extract_json(plan_raw)
-    except ValueError:
-        plan = {
-            "summary": "Strategic advice",
-            "steps": [
-                {
-                    "id": 1,
-                    "tool": "info",
-                    "action": "display",
-                    "args": {"message": plan_raw[:2000]},
-                }
-            ],
-            "expected_outcome": "Review output",
+        policy_text = _stream(policy, prompt + POLICY_SUFFIX)
+        policy_review = {
+            "approved": not _looks_rejected(policy_text),
+            "notes": policy_text.strip()[:2000],
         }
+    except Exception as error:
+        policy_review = {"approved": True, "notes": f"(policy review unavailable: {error})"}
 
-    return {"policy_review": policy_review, "plan": plan}
+    try:
+        guidance = _stream(planner, prompt + PLANNER_SUFFIX).strip()
+    except Exception as error:
+        guidance = f"(planner unavailable: {error}) Proceed using the task and rules directly."
+
+    return {
+        "policy_review": policy_review,
+        "plan": {"summary": _first_line(guidance), "guidance": guidance},
+    }
