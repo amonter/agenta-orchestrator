@@ -2,6 +2,7 @@ import json
 import re
 import urllib.request
 from typing import Any, Dict
+from urllib.error import HTTPError
 
 BASE_URL = "https://runtime-63463978729.asia-east1.run.app"
 
@@ -20,13 +21,15 @@ PLANNER_SUFFIX = (
 )
 
 
-def _stream(personality: str, user_input: str) -> str:
+def _stream(personality: str, user_input: str, council: str | None = None) -> str:
     payload = {
         "personality_name": personality,
         "user_input": user_input,
         "user_id": "hermes@local",
         "needs_memory": False,
     }
+    if council:
+        payload["council"] = council
     req = urllib.request.Request(
         BASE_URL + "/chat/stream",
         data=json.dumps(payload).encode(),
@@ -56,29 +59,54 @@ def _first_line(text: str) -> str:
     return "Strategic direction"
 
 
-def consult(
-    prompt: str, planner: str = "council-planner", policy: str = "council-policy-qc3"
-) -> Dict[str, Any]:
+def _is_council_resolution_error(error_text: str) -> bool:
+    pattern = r"\b(403|404|forbidden|unauthorized|not found|missing|denied)\b"
+    return bool(re.search(pattern, error_text, re.IGNORECASE))
+
+
+def consult(prompt: str, council: str | None = None) -> Dict[str, Any]:
     """Council = policy QC + planner. Both answer in natural language.
 
     We keep the planner's prose as high-level *direction*, not a rigid plan.
     The executing agent reads it and decides how to act.
     """
+    planner = "council-planner"
+    policy = "council-policy-qc3"
+    council_error = None
     try:
-        policy_text = _stream(policy, prompt + POLICY_SUFFIX)
+        policy_text = _stream(policy, prompt + POLICY_SUFFIX, council=council)
         policy_review = {
             "approved": not _looks_rejected(policy_text),
             "notes": policy_text.strip()[:2000],
         }
+    except HTTPError as error:
+        detail = f"{error.code} {error.reason}"
+        policy_review = {"approved": True, "notes": f"(policy review unavailable: {detail})"}
+        if council and _is_council_resolution_error(detail):
+            council_error = detail
     except Exception as error:
-        policy_review = {"approved": True, "notes": f"(policy review unavailable: {error})"}
+        detail = str(error)
+        policy_review = {"approved": True, "notes": f"(policy review unavailable: {detail})"}
+        if council and _is_council_resolution_error(detail):
+            council_error = detail
 
     try:
-        guidance = _stream(planner, prompt + PLANNER_SUFFIX).strip()
+        guidance = _stream(planner, prompt + PLANNER_SUFFIX, council=council).strip()
+    except HTTPError as error:
+        detail = f"{error.code} {error.reason}"
+        guidance = f"(planner unavailable: {detail}) Proceed using the task and rules directly."
+        if council and _is_council_resolution_error(detail):
+            council_error = detail
     except Exception as error:
-        guidance = f"(planner unavailable: {error}) Proceed using the task and rules directly."
+        detail = str(error)
+        guidance = f"(planner unavailable: {detail}) Proceed using the task and rules directly."
+        if council and _is_council_resolution_error(detail):
+            council_error = detail
 
-    return {
+    result = {
         "policy_review": policy_review,
         "plan": {"summary": _first_line(guidance), "guidance": guidance},
     }
+    if council_error:
+        result["council_error"] = council_error
+    return result

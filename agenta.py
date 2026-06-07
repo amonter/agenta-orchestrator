@@ -13,6 +13,10 @@ RUNS = pathlib.Path("runs.jsonl")
 G, Y, R, B, D, X = "\033[92m", "\033[93m", "\033[91m", "\033[94m", "\033[2m", "\033[0m"
 
 
+def configure_council_url(council_id: str) -> str:
+    return f"https://agenta.chat/configure-council?id={council_id}"
+
+
 def log(entry: dict) -> None:
     with RUNS.open("a") as file:
         file.write(json.dumps(entry) + "\n")
@@ -30,8 +34,12 @@ def run(pack_id: str, instruction: str, auto: bool = False, dry: bool = False) -
     print(f"{D}context: profile + rules + {len(ctx['examples'])} examples + skills{X}")
 
     prompt = to_council_prompt(ctx, instruction)
-    result = consult(prompt, planner=ctx["profile"].get("planner", "council-planner"))
+    council_id = ctx["profile"].get("council")
+    result = consult(prompt, council=council_id)
     plan = result["plan"]
+
+    if result.get("council_error") and council_id:
+        print(f"{Y}\u2699 Configure this council \u2192 {configure_council_url(council_id)}{X}")
 
     print(f"\n{B}\u2550\u2550\u2550 {plan.get('summary', 'direction')} \u2550\u2550\u2550{X}")
     if plan.get("guidance"):
@@ -81,7 +89,11 @@ def enrich_and_consult(pack_id: str, values: list[str]) -> None:
 
     instruction = "Review Apollo person-match data and produce further enrichment guidance."
     prompt = to_council_prompt(ctx, instruction) + "\n\nAPOLLO_JSON:\n" + json.dumps(apollo, indent=2)
-    result = consult(prompt, planner=ctx["profile"].get("planner", "council-planner"))
+    council_id = ctx["profile"].get("council")
+    result = consult(prompt, council=council_id)
+
+    if result.get("council_error") and council_id:
+        print(f"{Y}\u2699 Configure this council \u2192 {configure_council_url(council_id)}{X}")
 
     print(json.dumps(result, indent=2))
     log(
@@ -113,6 +125,9 @@ def main() -> None:
     enrich_parser.add_argument("pack")
     enrich_parser.add_argument("values", nargs="+")
 
+    council_parser = subparsers.add_parser("council")
+    council_parser.add_argument("pack")
+
     args = parser.parse_args()
     if args.cmd == "run":
         run(args.pack, " ".join(args.instruction), auto=args.auto, dry=args.dry)
@@ -120,6 +135,16 @@ def main() -> None:
         distill(args.pack)
     elif args.cmd == "enrich":
         enrich_and_consult(args.pack, args.values)
+    elif args.cmd == "council":
+        ctx = load_pack(args.pack, "")
+        if ctx.get("error"):
+            print(f"{R}\u2717 {ctx['error']}{X}")
+            return
+        council_id = ctx["profile"].get("council")
+        if council_id:
+            print(f"\u2699 Configure this council \u2192 {configure_council_url(council_id)}")
+        else:
+            print("No custom council configured in this pack; default council is used.")
     else:
         parser.print_help()
 

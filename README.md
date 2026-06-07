@@ -24,6 +24,7 @@ Code…) executes it. You pay for reasoning, not for every step.
 python3 agenta.py run    <pack> "<instruction>" [--dry] [--auto]
 python3 agenta.py enrich <pack> "<name|email>" ...
 python3 agenta.py learn  <pack>
+python3 agenta.py council <pack>
 ```
 
 - **run** — council plans, worker executes the brief. `--dry` prints the brief
@@ -31,6 +32,7 @@ python3 agenta.py learn  <pack>
 - **enrich** — Apollo people-match (a value with `@` is an email, else a name)
   then council review.
 - **learn** — distill this pack's executed runs into its `skills.md`.
+- **council** — print the setup link for this pack's configured council ID.
 
 ## A pack = a principal (`packs/<id>/`)
 
@@ -45,6 +47,14 @@ examples/*.md  optional — samples; top 2 matched to the instruction
 { "name": "Demo", "role": "Lesson writer", "voice": "clear, concise",
   "tools": { "workspace_path": "packs/demo/output" } }
 ```
+
+Optional custom council:
+
+```json
+{ "name": "Acme Principal", "council": "cnl_x7k2" }
+```
+
+If `council` is omitted, agenta uses the default council.
 
 A new pack is just a new folder with a `profile.json`. No registration. See
 [packs/demo/](packs/demo/).
