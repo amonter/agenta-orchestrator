@@ -48,13 +48,46 @@ examples/*.md  optional — samples; top 2 matched to the instruction
   "tools": { "workspace_path": "packs/demo/output" } }
 ```
 
-Optional custom council:
+Optional council configuration in `profile.json`:
 
 ```json
-{ "name": "Acme Principal", "council": "cnl_x7k2" }
+{
+  "name": "Acme Principal",
+  "role": "Lesson writer",
+  "voice": "clear, concise",
+  "council": "cnl_x7k2",
+  "tools": { "workspace_path": "packs/acme/output" }
+}
 ```
 
 If `council` is omitted, agenta uses the default council.
+
+## Council Configuration
+
+Agenta reads the council ID from:
+
+- `packs/<pack>/profile.json` -> `council`
+
+When set, the configure URL format is:
+
+- `https://agenta.chat/configure-council?id=<council_id>`
+
+Check your pack's council link:
+
+```bash
+python3 agenta.py council <pack>
+```
+
+Expected behavior:
+
+- If `profile.json` has `"council": "cnl_x7k2"`, the command prints:
+  `⚙ Configure this council → https://agenta.chat/configure-council?id=cnl_x7k2`
+- If `council` is missing, it prints:
+  `No custom council configured in this pack; default council is used.`
+
+During `run` and `enrich`, if your council ID cannot be resolved by the API
+(for example `403`, `404`, forbidden, missing, denied), agenta prints the same
+configure link so you can fix the council quickly.
 
 A new pack is just a new folder with a `profile.json`. No registration. See
 [packs/demo/](packs/demo/).
