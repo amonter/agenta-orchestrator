@@ -1,7 +1,7 @@
 import json
 import pathlib
 
-from council import _stream
+from council import consult
 
 RUNS = pathlib.Path("runs.jsonl")
 
@@ -39,7 +39,7 @@ def distill(pack_id: str) -> None:
         return
 
     payload = DISTILL_PROMPT + "\n\nRUNS:\n" + json.dumps(runs[-20:], indent=2)
-    skills = _stream("council-planner", payload)
+    skills = consult("council-planner", payload)
     output = pathlib.Path(f"packs/{pack_id}/skills.md")
     output.write_text(skills)
     print(f"\u2713 Updated {output} ({len(runs)} runs distilled)")
