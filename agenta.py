@@ -54,11 +54,11 @@ def finalize_brief_flow(
         choice = input(f"\n{G}Select an action [1-3]: {X}").strip()
 
     if choice == "1":
-        # Force the output to save relative to your current active terminal directory
-        current_dir = pathlib.Path.cwd()
+        # Force the output to save relative to your true user home directory (/home/amonter5)
+        home_dir = pathlib.Path.home()
         
-        # Creates a clean 'workspace/demo_output' folder in your current directory
-        workspace_path = current_dir / "workspace" / f"{pack_id}_output"
+        # Creates a clean, visible 'workspace/demo_output' folder in your home directory
+        workspace_path = home_dir / "workspace" / f"{pack_id}_output"
         workspace_path.mkdir(parents=True, exist_ok=True)
         
         # Generate a unique timestamp (YYYYMMDD_HHMMSS)
@@ -69,7 +69,7 @@ def finalize_brief_flow(
 
         print(f"\n\n{G}\u2713 Success! Unique brief saved directly to: {output_file}{X}\n")
         log({"ts": time.time(), "pack_id": pack_id, "instruction": instruction, "plan": plan, "status": "brief_saved"})
-        
+
     elif choice == "2":
         new_instruction = input(f"\n{Y}Enter your adjusted instruction: {X}").strip()
         if new_instruction and re_run_callback:
