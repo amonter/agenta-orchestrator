@@ -54,13 +54,20 @@ def finalize_brief_flow(
         choice = input(f"\n{G}Select an action [1-3]: {X}").strip()
 
     if choice == "1":
-        workspace_path = pathlib.Path(workspace).expanduser().resolve()
+        # Force the output to save relative to your current active terminal directory
+        current_dir = pathlib.Path.cwd()
+        
+        # Creates a clean 'workspace/demo_output' folder in your current directory
+        workspace_path = current_dir / "workspace" / f"{pack_id}_output"
         workspace_path.mkdir(parents=True, exist_ok=True)
-        output_file = workspace_path / "council_brief.md"
+        
+        # Generate a unique timestamp (YYYYMMDD_HHMMSS)
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        output_file = workspace_path / f"council_brief_{timestamp}.md"
+        
         output_file.write_text(brief)
 
-        # In agenta.py -> finalize_brief_flow
-        print(f"\n\n{G}\u2713 Success! Brief saved directly to: {output_file}{X}\n")
+        print(f"\n\n{G}\u2713 Success! Unique brief saved directly to: {output_file}{X}\n")
         log({"ts": time.time(), "pack_id": pack_id, "instruction": instruction, "plan": plan, "status": "brief_saved"})
         
     elif choice == "2":
