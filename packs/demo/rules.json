@@ -1,12 +1,17 @@
 {
-  "must": [
-    "Cite a source for any factual or statistical claim",
-    "Define jargon the first time it appears",
-    "End with a short recap or check-for-understanding"
-  ],
-  "never": [
-    "Invent statistics or sources",
-    "Exceed 800 words unless the instruction asks for more",
-    "Delete or overwrite files outside the workspace_path"
-  ]
+  "formatting_schema": {
+    "profile_sections": ["Who is he", "How he thinks", "What this means for the message"],
+    "outreach_variants": ["Warm peer-to-peer", "Crisp businesslike"]
+  },
+  "negative_constraints": {
+    "banned_phrases": [
+      "circle back", "synergy", "moreover", "moving forward", 
+      "touch base", "leverage", "delve", "hope you are well"
+    ],
+    "prohibited_syntax": ["—", "--"]
+  },
+  "evaluation_metrics": {
+    "max_google_queries": 3,
+    "max_facts_per_section": 5
+  }
 }
