@@ -48,7 +48,7 @@ def stream_single(prompt: str, personality: str) -> str:
     context = ssl._create_unverified_context()
     collected_text = []
 
-    print(f"\n\033[94m[Streaming from {personality}...]\033[0m\n")
+    #print(f"\n\033[94m[Streaming from {personality}...]\033[0m\n")
 
     try:
         with urllib.request.urlopen(req, timeout=180, context=context) as response:
@@ -78,8 +78,14 @@ def stream_single(prompt: str, personality: str) -> str:
                     else:
                         chunk = payload.replace("\\n", "\n")
                     
-                    print(chunk, end="", flush=True)
-                    collected_text.append(chunk)
+                    # --- ADDED: Strip the raw Gemini SDK metadata bleed ---
+                    # This regex catches and removes the leaked Python object string
+                    chunk = re.sub(r"candidates=.*?parsed=None", "", chunk, flags=re.DOTALL)
+                    
+                    # Only print and collect if there is actual text left
+                    if chunk:
+                        print(chunk, end="", flush=True)
+                        collected_text.append(chunk)
                         
         print("\n") 
         

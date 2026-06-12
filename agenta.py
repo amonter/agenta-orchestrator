@@ -1,6 +1,7 @@
 import argparse
 import json
 import pathlib
+import sys
 import time
 
 from context import load_pack, to_council_prompt
@@ -38,9 +39,10 @@ def finalize_brief_flow(
         return
 
     brief = plan_to_brief(plan, instruction, ctx.get("rules"))
-    print(f"\n{B}\u2500\u2500\u2500 FINAL COMPILED BRIEF \u2500\u2500\u2500{X}")
-    print(brief)
-    print(f"{B}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500{X}\n")
+    if not auto:
+        print(f"\n{B}\u2500\u2500\u2500 FINAL COMPILED BRIEF \u2500\u2500\u2500{X}")
+        print(brief)
+        print(f"{B}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500{X}\n")
 
     if auto:
         choice = "1"
@@ -57,7 +59,8 @@ def finalize_brief_flow(
         output_file = workspace_path / "council_brief.md"
         output_file.write_text(brief)
 
-        print(f"\n{G}\u2713 Success! Brief saved directly to: {output_file}{X}\n")
+        # In agenta.py -> finalize_brief_flow
+        print(f"\n\n{G}\u2713 Success! Brief saved directly to: {output_file}{X}\n")
         log({"ts": time.time(), "pack_id": pack_id, "instruction": instruction, "plan": plan, "status": "brief_saved"})
         
     elif choice == "2":
@@ -132,6 +135,10 @@ def enrich_and_consult(
     github: str | None = None,
     facebook: str | None = None,
 ) -> None:
+    print(f"{B}\u2699 Agenta CLI: Initializing enrichment engine...{X}")
+    print(f"{D}\u27f3 Fetching target data and routing to Multi-Model Council (this takes a few moments)...{X}")
+    sys.stdout.flush()
+
     ctx = load_pack(pack_id, "Apollo enrichment review")
     if ctx.get("error"):
         print(f"{R}\u2717 {ctx['error']}{X}")
@@ -155,7 +162,7 @@ def enrich_and_consult(
         f"{json.dumps(apollo, indent=2)}"
     )
 
-    print('combined_prompt =============================================', combined_prompt)
+    #print('combined_prompt =============================================', combined_prompt)
     
     agent_name = "geminipro_executive_revops"
     guidance = stream_single(combined_prompt, agent_name)
@@ -189,7 +196,7 @@ def enrich_and_consult(
         ctx=ctx,
         workspace=workspace,
         pack_id=pack_id,
-        auto=False,
+        auto=True,
         dry=False,
         re_run_callback=lambda new_instr: enrich_and_consult(
             pack_id,
@@ -202,6 +209,7 @@ def enrich_and_consult(
             facebook=facebook,
         )
     )
+    sys.exit(0)
 
 
 def main() -> None:
